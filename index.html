@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan of Life · 記憶宇宙</title>
+<style>
+  :root { --panel: rgba(10,14,28,.82); --line: rgba(120,160,255,.25); --txt:#e8eefc; --accent:#4fc3f7; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:#03040a; color:var(--txt);
+    font-family:"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif; overflow:hidden; }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; backdrop-filter:blur(8px); padding:14px; }
+  #left { top:16px; left:16px; width:320px; max-height:calc(100vh - 32px); overflow:auto; }
+  h1 { font-size:16px; margin:0 0 4px; font-weight:500; letter-spacing:1px; }
+  .sub { font-size:12px; color:#8aa; margin:0 0 12px; }
+  label { font-size:12px; color:#9bb; display:block; margin:10px 0 4px; }
+  textarea, input[type=text] { width:100%; background:#0a0f1e; color:var(--txt);
+    border:1px solid var(--line); border-radius:8px; padding:8px; font-size:13px; resize:vertical; }
+  textarea { min-height:60px; }
+  button { background:var(--accent); color:#01121f; border:0; border-radius:8px;
+    padding:8px 12px; font-size:13px; font-weight:600; cursor:pointer; margin-top:8px; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { display:inline-block; font-size:11px; padding:3px 8px; border-radius:20px;
+    background:rgba(120,160,255,.15); margin:3px 3px 0 0; }
+  #suggest-box, #result-box { margin-top:10px; font-size:12px; display:none; }
+  .card { background:#0a0f1e; border:1px solid var(--line); border-radius:8px; padding:8px; margin-top:6px; }
+  .catpick { font-size:12px; padding:6px; border-radius:8px; background:#0a0f1e;
+    border:1px solid var(--line); color:var(--txt); width:100%; }
+  #hint { position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    font-size:11px; color:#5a6a8a; }
+  #node-info { bottom:16px; right:16px; width:300px; display:none; }
+  .err { color:#ff8a8a; }
+  .ok { color:#7CFFB2; }
+  .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  /* 檔案上傳 */
+  #file-input { display:none; }
+  .filebtn { background:transparent; color:#9bdcff; border:1px dashed var(--accent); }
+  #file-name { font-size:11px; color:#ffd27a; margin-left:6px; word-break:break-all; }
+  /* 記憶清單(可收合 + 拖曳縮放) */
+  .seg-head { display:flex; justify-content:space-between; align-items:center; cursor:pointer;
+    margin-top:16px; padding-top:12px; border-top:1px solid var(--line); user-select:none; }
+  .seg-head h2 { font-size:13px; font-weight:500; margin:0; color:#cfe0ff; }
+  #list-count { font-size:11px; color:#8aa; }
+  #list-wrap { resize:vertical; overflow:auto; height:200px; min-height:70px; max-height:60vh;
+    border:1px solid var(--line); border-radius:8px; margin-top:8px; background:#070b16; }
+  #list-wrap.collapsed { display:none; }
+  table.mem { width:100%; border-collapse:collapse; font-size:11px; }
+  table.mem th { position:sticky; top:0; background:#0c1326; color:#8fa6d0; text-align:left;
+    padding:6px 8px; font-weight:500; }
+  table.mem td { padding:5px 8px; border-top:1px solid rgba(120,160,255,.12); vertical-align:top; }
+  table.mem tr:hover { background:rgba(120,160,255,.08); cursor:pointer; }
+  .tag-cat { font-size:10px; padding:1px 6px; border-radius:10px; background:rgba(120,160,255,.18); white-space:nowrap; }
+  .del { color:#ff8a8a; cursor:pointer; font-weight:700; }
+</style>
+</head>
+<body>
+<div id="app" aria-label="記憶宇宙 3D 視覺化"></div>
+
+<section id="left" class="panel">
+  <h1>🌍 Plan of Life · 記憶宇宙</h1>
+  <p class="sub">輸入你的想法 → AI 半自動分類 → 存進雲端星系</p>
+
+  <label>輸入一段資料</label>
+  <textarea id="content" placeholder="例如:我相信長期主義,做決定看十年後的價值…"></textarea>
+  <div class="row">
+    <button id="btn-suggest">分類建議</button>
+    <button id="btn-file" class="filebtn">📎 上傳檔案</button>
+  </div>
+  <input id="file-input" type="file">
+  <span id="file-name"></span>
+
+  <div id="suggest-box">
+    <label>分類(可改)</label>
+    <select id="cat" class="catpick"></select>
+    <label>標籤</label>
+    <div id="tags"></div>
+    <button id="btn-commit">確認存入星系</button>
+    <span id="commit-status"></span>
+  </div>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+
+  <label>語意檢索(問問題)</label>
+  <input id="query" type="text" placeholder="例如:我做決策的原則是什麼?">
+  <button id="btn-recall" class="ghost">檢索記憶</button>
+  <div id="result-box"></div>
+
+  <div class="seg-head" id="list-toggle"><h2>📋 記憶清單</h2><span id="list-count"></span></div>
+  <div id="list-wrap">
+    <table class="mem"><thead><tr><th>分類</th><th>內容</th><th></th></tr></thead><tbody id="list-body"></tbody></table>
+  </div>
+</section>
+
+<section id="node-info" class="panel"></section>
+<div id="hint">滑鼠拖曳旋轉 · 滾輪縮放 · 點星星看內容</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ---- 後端設定 ----
+const SUPABASE_URL = 'https://hhcubvixldieuwdeqnwc.supabase.co';
+const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhoY3Vidml4bGRpZXV3ZGVxbndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjcyNDYsImV4cCI6MjA5MTE0MzI0Nn0.zkWxfm0FugSEL9zW6pwDFWPqmRJ3ystOZfU8yRL2lPo';
+const FN = SUPABASE_URL + '/functions/v1/plantoflife-memory';
+function appSecret(){
+  let s = localStorage.getItem('pol_secret');
+  if(!s){ s = prompt('請輸入通關密碼以使用記憶宇宙:') || ''; if(s) localStorage.setItem('pol_secret', s); }
+  return s;
+}
+async function api(payload) {
+  const r = await fetch(FN, { method:'POST',
+    headers:{ 'Content-Type':'application/json', 'apikey':ANON, 'Authorization':'Bearer '+ANON, 'x-app-secret': appSecret() },
+    body: JSON.stringify(payload) });
+  if(r.status===401){ localStorage.removeItem('pol_secret'); alert('密碼錯誤,請重新整理頁面再輸入'); return { error:'密碼錯誤' }; }
+  return r.json();
+}
+
+// ---- 3D 場景 ----
+const app = document.getElementById('app');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(0, 30, 95);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+app.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// 背景星點
+(function stars(){
+  const g = new THREE.BufferGeometry(); const n=1500; const p=new Float32Array(n*3);
+  for(let i=0;i<n*3;i++) p[i]=(Math.random()-.5)*1200;
+  g.setAttribute('position', new THREE.BufferAttribute(p,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0x556699,size:.8})));
+})();
+
+// bloom 發光
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.9, 0.5, 0.15));
+
+function textSprite(text, color='#cfe3ff', size=64){
+  const c=document.createElement('canvas'); const ctx=c.getContext('2d');
+  c.width=512; c.height=128; ctx.font=`500 ${size}px "Microsoft JhengHei",sans-serif`;
+  ctx.fillStyle=color; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text, 256, 64);
+  const t=new THREE.CanvasTexture(c);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t, transparent:true, depthWrite:false}));
+  s.scale.set(14,3.5,1); return s;
+}
+
+const RING_R = { 0:0, 1:26, 2:46, 3:66 };
+const pickable = [];                 // 可點的記憶節點
+let universe = new THREE.Group(); scene.add(universe);
+
+function buildUniverse(graph){
+  scene.remove(universe); universe = new THREE.Group(); scene.add(universe);
+  pickable.length = 0;
+  const cats = graph.categories || [];
+  const mems = graph.memories || [];
+  const catPos = {}; const catColor = {}; cats.forEach(c=>catColor[c.name]=c.color);
+
+  // 核心地球
+  const core = new THREE.Mesh(new THREE.SphereGeometry(6,40,40),
+    new THREE.MeshBasicMaterial({color:0x2f7fd6}));
+  universe.add(core); catPos['核心']=new THREE.Vector3(0,0,0);
+  const earthLabel = textSprite('核心 · 自我', '#9fd0ff'); earthLabel.position.set(0,9,0); universe.add(earthLabel);
+
+  // 各分類行星(依 ring 排在對應軌道)
+  const byRing = {1:[],2:[],3:[]};
+  cats.forEach(c=>{ if(c.ring>=1) byRing[c.ring].push(c); });
+  [1,2,3].forEach(ring=>{
+    const list = byRing[ring]; const R = RING_R[ring];
+    list.forEach((c,i)=>{
+      const ang = (i/Math.max(list.length,1))*Math.PI*2 + ring*0.6;
+      const pos = new THREE.Vector3(Math.cos(ang)*R, (Math.random()-.5)*6, Math.sin(ang)*R);
+      catPos[c.name]=pos;
+      const rad = ring===1?3.2 : ring===2?4 : 2.4;
+      const planet = new THREE.Mesh(new THREE.SphereGeometry(rad,28,28),
+        new THREE.MeshBasicMaterial({color:new THREE.Color(c.color||'#88aaff')}));
+      planet.position.copy(pos); universe.add(planet);
+      const lbl = textSprite(c.name, c.color||'#cfe3ff'); lbl.position.copy(pos).add(new THREE.Vector3(0,rad+2.5,0));
+      universe.add(lbl);
+      // 行星 → 核心 連線
+      universe.add(line(pos, catPos['核心'], 0x3355aa, .25));
+    });
+  });
+
+  // 記憶節點:繞著所屬分類行星
+  const grouped = {};
+  mems.forEach(m=>{ (grouped[m.category]=grouped[m.category]||[]).push(m); });
+  Object.entries(grouped).forEach(([cat,arr])=>{
+    const center = catPos[cat] || catPos['未分類'] || new THREE.Vector3(0,0,0);
+    arr.forEach((m,i)=>{
+      const a=(i/arr.length)*Math.PI*2; const r=6+ (i%3);
+      const p=new THREE.Vector3(center.x+Math.cos(a)*r, center.y+(Math.random()-.5)*4, center.z+Math.sin(a)*r);
+      const isFile = m.source==='file' || (m.metadata && m.metadata.kind==='file');
+      let dot;
+      if(isFile){
+        // 檔案衛星:八面體 + 光環,用分類顏色
+        dot=new THREE.Mesh(new THREE.OctahedronGeometry(1.3),
+          new THREE.MeshBasicMaterial({color:new THREE.Color(catColor[cat]||'#ffd27a')}));
+        const ringM=new THREE.Mesh(new THREE.TorusGeometry(2,0.12,8,24),
+          new THREE.MeshBasicMaterial({color:0xffe2a0}));
+        ringM.position.copy(p); ringM.rotation.x=Math.PI/2.5; universe.add(ringM);
+      } else {
+        dot=new THREE.Mesh(new THREE.SphereGeometry(.9,16,16),
+          new THREE.MeshBasicMaterial({color:0xffffff}));
+      }
+      dot.position.copy(p); dot.userData=m; universe.add(dot); pickable.push(dot);
+      universe.add(line(p, center, isFile?0xffd27a:0x6688cc, .2));
+    });
+  });
+}
+function line(a,b,color,opacity){
+  return new THREE.LineSegments(
+    new THREE.BufferGeometry().setFromPoints([a,b]),
+    new THREE.LineBasicMaterial({color, transparent:true, opacity}));
+}
+
+// 點擊節點 → 顯示內容
+const ray=new THREE.Raycaster(); const mouse=new THREE.Vector2();
+renderer.domElement.addEventListener('click', e=>{
+  mouse.x=(e.clientX/innerWidth)*2-1; mouse.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(mouse,camera);
+  const hit=ray.intersectObjects(pickable)[0];
+  if(hit){ showNode(hit.object.userData); }
+  else document.getElementById('node-info').style.display='none';
+});
+
+function animate(){ requestAnimationFrame(animate); universe.rotation.y+=0.0009; controls.update(); composer.render(); }
+animate();
+addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight); });
+
+// ---- UI 流程 ----
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const CATS=['核心','世界觀','價值觀','人生觀','事業觀','商業財務觀','AI事業','人脈事業','自媒體事業','財務管理事業','未分類'];
+$('cat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
+
+$('btn-suggest').onclick=async()=>{
+  const content=$('content').value.trim(); if(!content) return;
+  const b=$('btn-suggest'); b.disabled=true; b.textContent='分析中…';
+  try{
+    const s=await api({action:'suggest',content});
+    if(s.error) throw new Error(s.error);
+    $('cat').value=s.category; $('tags').innerHTML=(s.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('');
+    $('suggest-box').style.display='block';
+  }catch(e){ alert('分類失敗:'+e.message); }
+  b.disabled=false; b.textContent='分類建議';
+};
+
+let pendingFile = null;   // {fileName, contentType, base64, text}
+
+$('btn-file').onclick=()=>$('file-input').click();
+$('file-input').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  $('file-name').textContent=f.name;
+  const b=$('btn-file'); b.disabled=true; b.textContent='分析中…';
+  try{
+    const base64=await fileToBase64(f);
+    let text='';
+    if(/text\/|json|csv|javascript|xml/.test(f.type) || /\.(txt|md|csv|json|js|ts|html|css|log)$/i.test(f.name)){
+      text=await f.text();
+    }
+    pendingFile={ fileName:f.name, contentType:f.type||'application/octet-stream', base64, text };
+    const s=await api({action:'suggest', content: text? text.slice(0,4000): f.name});
+    if(s.error) throw new Error(s.error);
+    $('content').value='';
+    $('cat').value=s.category;
+    $('tags').innerHTML=(s.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('');
+    $('suggest-box').style.display='block'; $('commit-status').textContent='';
+  }catch(err){ alert('檔案分析失敗:'+err.message); pendingFile=null; $('file-name').textContent=''; }
+  b.disabled=false; b.textContent='📎 上傳檔案';
+};
+function fileToBase64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader();
+    r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); });
+}
+
+$('btn-commit').onclick=async()=>{
+  const category=$('cat').value;
+  const tags=[...$('tags').querySelectorAll('.chip')].map(x=>x.textContent);
+  const b=$('btn-commit'); b.disabled=true; b.textContent='存入中…';
+  const st=$('commit-status');
+  try{
+    let r;
+    if(pendingFile){
+      r=await api({action:'upload', fileName:pendingFile.fileName, contentType:pendingFile.contentType,
+        base64:pendingFile.base64, text:pendingFile.text, category, tags});
+    } else {
+      const content=$('content').value.trim(); if(!content) throw new Error('沒有內容');
+      r=await api({action:'commit',content,category,tags,source:'web'});
+    }
+    if(r.error) throw new Error(r.error);
+    st.className='ok'; st.textContent=' ✓ 已存入';
+    $('content').value=''; $('file-name').textContent=''; $('file-input').value=''; pendingFile=null;
+    $('suggest-box').style.display='none';
+    await loadGraph();
+  }catch(e){ st.className='err'; st.textContent=' ✗ '+e.message; }
+  b.disabled=false; b.textContent='確認存入星系';
+};
+
+async function showNode(m){
+  const box=$('node-info'); box.style.display='block';
+  const isFile=m.source==='file'||(m.metadata && m.metadata.kind==='file');
+  const main=isFile ? ('📎 '+esc(m.metadata?.file_name||'檔案')) : esc(m.content);
+  box.innerHTML=`<div style="font-size:11px;color:#8aa">${esc(m.category)}</div>
+    <div style="margin:6px 0;font-size:13px;max-height:160px;overflow:auto">${main}</div>
+    <div>${(m.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>
+    ${isFile?'<button id="open-file" class="ghost">開啟檔案</button>':''}`;
+  if(isFile){ $('open-file').onclick=async()=>{
+    const r=await api({action:'file-link', path:m.metadata.path});
+    if(r.url) window.open(r.url,'_blank'); else alert('連結產生失敗');
+  }; }
+}
+
+$('list-toggle').onclick=()=>$('list-wrap').classList.toggle('collapsed');
+function renderList(g){
+  const mems=[...(g.memories||[])].reverse();
+  $('list-count').textContent=`${mems.length} 筆`;
+  const body=$('list-body');
+  body.innerHTML=mems.map(m=>{
+    const isFile=m.source==='file'||(m.metadata && m.metadata.kind==='file');
+    const txt=isFile ? `📎 ${esc(m.metadata?.file_name||'檔案')}` : esc((m.content||'').slice(0,38));
+    return `<tr data-id="${m.id}"><td><span class="tag-cat">${esc(m.category)}</span></td>
+      <td>${txt}</td><td><span class="del" data-del="${m.id}">✕</span></td></tr>`;
+  }).join('');
+  body.querySelectorAll('tr').forEach(tr=>{
+    tr.onclick=(e)=>{ if(e.target.classList.contains('del')) return;
+      const m=(g.memories||[]).find(x=>x.id===tr.dataset.id); if(m) showNode(m); };
+  });
+  body.querySelectorAll('.del').forEach(x=>{
+    x.onclick=async(e)=>{ e.stopPropagation();
+      if(!confirm('刪除這筆記憶?')) return;
+      const r=await api({action:'delete', id:x.dataset.del});
+      if(r.ok){ $('node-info').style.display='none'; loadGraph(); } else alert('刪除失敗:'+(r.error||''));
+    };
+  });
+}
+
+$('btn-recall').onclick=async()=>{
+  const query=$('query').value.trim(); if(!query) return;
+  const box=$('result-box'); box.style.display='block'; box.innerHTML='檢索中…';
+  try{
+    const r=await api({action:'recall',query});
+    if(r.error) throw new Error(r.error);
+    if(!r.use){ box.innerHTML='<span style="color:#8aa">這次沒有夠相關的記憶。</span>'; return; }
+    box.innerHTML=r.memories.map(m=>`<div class="card">
+      <div style="font-size:11px;color:#8aa">${m.category} · ${(m.score*100|0)}%相關</div>
+      <div style="margin-top:4px">${esc(m.content)}</div></div>`).join('');
+  }catch(e){ box.innerHTML='<span class="err">檢索失敗:'+esc(e.message)+'</span>'; }
+};
+
+async function loadGraph(){
+  const g=await api({action:'graph'});
+  if(g.error){ console.error(g.error); return; }
+  buildUniverse(g);
+  renderList(g);
+  window.__graphLoaded = (g.memories||[]).length;   // 給測試用
+}
+loadGraph();
+</script>
+</body>
+</html>
