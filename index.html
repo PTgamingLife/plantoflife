@@ -181,25 +181,37 @@ function buildUniverse(graph){
   universe.add(core); catPos['核心']=new THREE.Vector3(0,0,0);
   const earthLabel = textSprite('核心 · 自我', '#9fd0ff'); earthLabel.position.set(0,9,0); universe.add(earthLabel);
 
-  // 各分類行星(依 ring 排在對應軌道)
+  // 各分類行星 + 連線(五觀→核心;四事業→所屬五觀)
   const byRing = {1:[],2:[],3:[]};
   cats.forEach(c=>{ if(c.ring>=1) byRing[c.ring].push(c); });
-  [1,2,3].forEach(ring=>{
-    const list = byRing[ring]; const R = RING_R[ring];
-    list.forEach((c,i)=>{
-      const ang = (i/Math.max(list.length,1))*Math.PI*2 + ring*0.6;
-      const pos = new THREE.Vector3(Math.cos(ang)*R, (Math.random()-.5)*6, Math.sin(ang)*R);
-      catPos[c.name]=pos;
-      const rad = ring===1?3.2 : ring===2?4 : 2.4;
-      const planet = new THREE.Mesh(new THREE.SphereGeometry(rad,28,28),
-        new THREE.MeshBasicMaterial({color:new THREE.Color(c.color||'#88aaff')}));
-      planet.position.copy(pos); universe.add(planet);
-      const lbl = textSprite(c.name, c.color||'#cfe3ff'); lbl.position.copy(pos).add(new THREE.Vector3(0,rad+2.5,0));
-      universe.add(lbl);
-      // 行星 → 核心 連線
-      universe.add(line(pos, catPos['核心'], 0x3355aa, .25));
-    });
-  });
+  const PARENT = { 'AI事業':'價值觀', '人脈事業':'人生觀', '自媒體事業':'事業觀', '財務管理事業':'商業財務觀' };
+  const catAng = {};
+  function placePlanet(c, ring, ang){
+    const R = RING_R[ring];
+    const pos = new THREE.Vector3(Math.cos(ang)*R, (Math.random()-.5)*6, Math.sin(ang)*R);
+    catPos[c.name]=pos; catAng[c.name]=ang;
+    const rad = ring===1?3.2 : ring===2?4 : 2.4;
+    const planet = new THREE.Mesh(new THREE.SphereGeometry(rad,28,28),
+      new THREE.MeshBasicMaterial({color:new THREE.Color(c.color||'#88aaff')}));
+    planet.position.copy(pos); universe.add(planet);
+    const lbl = textSprite(c.name, c.color||'#cfe3ff');
+    lbl.position.copy(pos).add(new THREE.Vector3(0,rad+2.5,0)); universe.add(lbl);
+    return pos;
+  }
+  // 第二圈 五觀:平均分佈,連到核心
+  const r1 = byRing[1];
+  r1.forEach((c,i)=>{ const ang=(i/Math.max(r1.length,1))*Math.PI*2;
+    const pos=placePlanet(c,1,ang); universe.add(line(pos, catPos['核心'], 0x3355aa, .22)); });
+  // 第三圈 四事業:對齊所屬五觀角度,連到該五觀(而非核心)
+  const r2 = byRing[2];
+  r2.forEach((c,i)=>{ const parent=PARENT[c.name];
+    const ang = (parent && catAng[parent]!=null) ? catAng[parent] : (i/Math.max(r2.length,1))*Math.PI*2+0.3;
+    const pos=placePlanet(c,2,ang);
+    universe.add(line(pos, catPos[parent]||catPos['核心'], 0x7aa0ff, .35)); });
+  // 未分類:連到核心
+  const r3 = byRing[3];
+  r3.forEach((c,i)=>{ const ang=(i/Math.max(r3.length,1))*Math.PI*2+0.6;
+    const pos=placePlanet(c,3,ang); universe.add(line(pos, catPos['核心'], 0x3355aa, .18)); });
 
   // 記憶節點:繞著所屬分類行星
   const grouped = {};
