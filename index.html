@@ -13,8 +13,13 @@
   canvas { display:block; }
   .panel { position:fixed; background:var(--panel); border:1px solid var(--line);
     border-radius:12px; backdrop-filter:blur(8px); padding:14px; }
-  #left { top:16px; left:16px; width:320px; max-height:calc(100vh - 32px); overflow:auto; }
-  h1 { font-size:16px; margin:0 0 4px; font-weight:500; letter-spacing:1px; }
+  #left { top:16px; left:16px; width:320px; max-height:calc(100vh - 32px); overflow:auto;
+    transition: max-height 0.3s ease; }
+  #left.panel-collapsed { max-height:46px !important; overflow:hidden; }
+  h1 { font-size:16px; margin:0 0 4px; font-weight:500; letter-spacing:1px; display:flex; align-items:center; }
+  #panel-toggle { margin-left:auto; background:transparent; color:var(--accent);
+    border:1px solid rgba(79,195,247,.4); border-radius:6px; padding:0 8px;
+    font-size:12px; cursor:pointer; line-height:22px; margin-top:0; flex-shrink:0; }
   .sub { font-size:12px; color:#8aa; margin:0 0 12px; }
   label { font-size:12px; color:#9bb; display:block; margin:10px 0 4px; }
   textarea, input[type=text] { width:100%; background:#0a0f1e; color:var(--txt);
@@ -70,7 +75,7 @@
 <div id="app" aria-label="記憶宇宙 3D 視覺化"></div>
 
 <section id="left" class="panel">
-  <h1>🌍 Plan of Life · 記憶宇宙</h1>
+  <h1>🌍 Plan of Life · 記憶宇宙 <button id="panel-toggle" aria-label="收合面板">▲</button></h1>
   <p class="sub">輸入你的想法 → AI 半自動分類 → 存進雲端星系</p>
 
   <label>輸入一段資料</label>
@@ -403,6 +408,12 @@ async function loadGraph(){
   window.__graphLoaded = (g.memories||[]).length;   // 給測試用
 }
 loadGraph();
+
+$('panel-toggle').onclick=()=>{
+  const p=$('left'), b=$('panel-toggle');
+  p.classList.toggle('panel-collapsed');
+  b.textContent=p.classList.contains('panel-collapsed')?'▼':'▲';
+};
 </script>
 </body>
 </html>
